@@ -45,7 +45,7 @@
     </plugin>
 
     <include>
-      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Sun</uri>
+      <uri>model://Sun</uri>
     </include>
 
     <include>
