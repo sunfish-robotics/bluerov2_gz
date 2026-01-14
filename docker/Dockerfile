@@ -120,6 +120,10 @@ RUN echo "export PATH=/home/$USERNAME/.local/bin:\$PATH" >> /home/$USERNAME/.bas
   && echo "export GZ_SIM_SYSTEM_PLUGIN_PATH=/home/$USERNAME/ardupilot_gazebo/build" >> /home/$USERNAME/.bashrc \
   && echo "export GZ_SIM_RESOURCE_PATH=/home/$USERNAME/bluerov2_gz/models:/home/$USERNAME/bluerov2_gz/worlds" >> /home/$USERNAME/.bashrc
 
+# Set environment variables for ENTRYPOINT/CMD (not sourced from .bashrc)
+ENV GZ_SIM_SYSTEM_PLUGIN_PATH=/home/$USERNAME/ardupilot_gazebo/build
+ENV GZ_SIM_RESOURCE_PATH=/home/$USERNAME/bluerov2_gz/models:/home/$USERNAME/bluerov2_gz/worlds
+
 # Required to use the --console option on sim_vehicle.py
 # RUN pip3 install matplotlib
 
@@ -134,5 +138,6 @@ EXPOSE 10318/udp
 # The best way to do this is by attaching the Gazebo and SITL containers to the
 # same internal Docker network
 
+# Default: run server-only mode (headless)
 ENTRYPOINT ["gz"]
-CMD ["sim", "-v", "-s", "-r", "bluerov2"]
+CMD ["sim", "-v", "-s", "-r", "bluerov2_underwater.world"]
