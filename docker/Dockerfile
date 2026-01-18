@@ -118,40 +118,9 @@ RUN [ "/bin/bash" , "-c" , " \
   && cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   && make -j4" ]
 
-# Copy bluerov2_gz code
+# Copy bluerov2_gz code (includes models/, worlds/, etc.)
 WORKDIR /home/$USERNAME/bluerov2_gz
 COPY --chown=$USER_UID:$USER_GID . .
-
-# Create Sun model locally to avoid Fuel download at runtime
-RUN mkdir -p models/Sun && \
-    echo '<?xml version="1.0" ?>' > models/Sun/model.sdf && \
-    echo '<sdf version="1.6">' >> models/Sun/model.sdf && \
-    echo '  <model name="sun">' >> models/Sun/model.sdf && \
-    echo '    <static>true</static>' >> models/Sun/model.sdf && \
-    echo '    <link name="link">' >> models/Sun/model.sdf && \
-    echo '      <light type="directional" name="sun_light">' >> models/Sun/model.sdf && \
-    echo '        <cast_shadows>true</cast_shadows>' >> models/Sun/model.sdf && \
-    echo '        <pose>0 0 10 0 0 0</pose>' >> models/Sun/model.sdf && \
-    echo '        <diffuse>0.8 0.8 0.8 1</diffuse>' >> models/Sun/model.sdf && \
-    echo '        <specular>0.2 0.2 0.2 1</specular>' >> models/Sun/model.sdf && \
-    echo '        <attenuation>' >> models/Sun/model.sdf && \
-    echo '          <range>1000</range>' >> models/Sun/model.sdf && \
-    echo '          <constant>0.9</constant>' >> models/Sun/model.sdf && \
-    echo '          <linear>0.01</linear>' >> models/Sun/model.sdf && \
-    echo '          <quadratic>0.001</quadratic>' >> models/Sun/model.sdf && \
-    echo '        </attenuation>' >> models/Sun/model.sdf && \
-    echo '        <direction>-0.5 0.1 -0.9</direction>' >> models/Sun/model.sdf && \
-    echo '      </light>' >> models/Sun/model.sdf && \
-    echo '    </link>' >> models/Sun/model.sdf && \
-    echo '  </model>' >> models/Sun/model.sdf && \
-    echo '</sdf>' >> models/Sun/model.sdf && \
-    echo '<?xml version="1.0"?>' > models/Sun/model.config && \
-    echo '<model>' >> models/Sun/model.config && \
-    echo '  <name>Sun</name>' >> models/Sun/model.config && \
-    echo '  <version>1.0</version>' >> models/Sun/model.config && \
-    echo '  <sdf version="1.6">model.sdf</sdf>' >> models/Sun/model.config && \
-    echo '</model>' >> models/Sun/model.config && \
-    echo "Sun model created:" && ls -la models/Sun/
 
 # Set up the environment
 WORKDIR /home/$USERNAME
@@ -208,16 +177,14 @@ sleep 1\n\
 echo "Starting VNC server on port 5900 (password: gazebo)..."\n\
 x11vnc -display :99 -rfbauth /home/bluerov2/.vnc/passwd -forever -shared -rfbport 5900 -bg -o /tmp/x11vnc.log\n\
 \n\
-# Start Gazebo GUI\n\
+# Start Gazebo GUI with BlueROV2 world (using full path)\n\
 echo "Starting Gazebo GUI..."\n\
-cd /home/bluerov2/bluerov2_gz\n\
-gz sim -v -r\n\
+gz sim -v -r /home/bluerov2/bluerov2_gz/worlds/bluerov2_underwater.world\n\
 ' > /home/$USERNAME/start_gui.sh && chmod +x /home/$USERNAME/start_gui.sh
 
 # Create startup script for headless mode
 RUN echo '#!/bin/bash\n\
-cd /home/bluerov2/bluerov2_gz\n\
-gz sim -v -s -r\n\
+gz sim -v -s -r /home/bluerov2/bluerov2_gz/worlds/bluerov2_underwater.world\n\
 ' > /home/$USERNAME/start_headless.sh && chmod +x /home/$USERNAME/start_headless.sh
 
 # Default: run server-only mode (headless)
