@@ -43,6 +43,15 @@ RUN apt-get update \
     vim \
   && rm -rf /var/lib/apt/lists/*
 
+# Install VNC and virtual display packages
+RUN apt-get update \
+  && apt-get -y --quiet --no-install-recommends install \
+    x11vnc \
+    xvfb \
+    fluxbox \
+    dbus-x11 \
+  && rm -rf /var/lib/apt/lists/*
+
 # Install Gazebo Harmonic
 RUN wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
 RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
@@ -109,7 +118,7 @@ RUN [ "/bin/bash" , "-c" , " \
   && cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   && make -j4" ]
 
-# Copy bluerov2_gz code
+# Copy bluerov2_gz code (includes models/, worlds/, etc.)
 WORKDIR /home/$USERNAME/bluerov2_gz
 COPY --chown=$USER_UID:$USER_GID . .
 
@@ -120,6 +129,13 @@ RUN echo "export PATH=/home/$USERNAME/.local/bin:\$PATH" >> /home/$USERNAME/.bas
   && echo "export GZ_SIM_SYSTEM_PLUGIN_PATH=/home/$USERNAME/ardupilot_gazebo/build" >> /home/$USERNAME/.bashrc \
   && echo "export GZ_SIM_RESOURCE_PATH=/home/$USERNAME/bluerov2_gz/models:/home/$USERNAME/bluerov2_gz/worlds" >> /home/$USERNAME/.bashrc
 
+# Set environment variables for ENTRYPOINT/CMD (not sourced from .bashrc)
+ENV GZ_SIM_SYSTEM_PLUGIN_PATH=/home/$USERNAME/ardupilot_gazebo/build
+ENV GZ_SIM_RESOURCE_PATH=/home/$USERNAME/bluerov2_gz/models:/home/$USERNAME/bluerov2_gz/worlds
+ENV GZ_IP=0.0.0.0
+ENV GZ_RELAY=0.0.0.0
+ENV GZ_PARTITION=bluerov2
+
 # Required to use the --console option on sim_vehicle.py
 # RUN pip3 install matplotlib
 
@@ -127,6 +143,8 @@ RUN echo "export PATH=/home/$USERNAME/.local/bin:\$PATH" >> /home/$USERNAME/.bas
 EXPOSE 10317/udp
 # Gazebo service discovery
 EXPOSE 10318/udp
+# VNC port
+EXPOSE 5900
 
 # NOTE: You'll need to make the following ports accessible to the ArduPilot SITL:
 # - 9002/udp (Flight Dynamics Model)
@@ -134,5 +152,42 @@ EXPOSE 10318/udp
 # The best way to do this is by attaching the Gazebo and SITL containers to the
 # same internal Docker network
 
-ENTRYPOINT ["gz"]
-CMD ["sim", "-v", "-s", "-r", "bluerov2"]
+# Create VNC password file (password: gazebo)
+RUN mkdir -p /home/$USERNAME/.vnc && \
+    x11vnc -storepasswd gazebo /home/$USERNAME/.vnc/passwd
+
+# Create startup script for GUI mode with VNC
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Starting virtual display..."\n\
+Xvfb :99 -screen 0 1920x1080x24 &\n\
+XVFB_PID=$!\n\
+export DISPLAY=:99\n\
+\n\
+# Wait for X to start\n\
+echo "Waiting for X server..."\n\
+sleep 3\n\
+\n\
+# Start window manager\n\
+echo "Starting window manager..."\n\
+fluxbox &\n\
+sleep 1\n\
+\n\
+# Start VNC server with password\n\
+echo "Starting VNC server on port 5900 (password: gazebo)..."\n\
+x11vnc -display :99 -rfbauth /home/bluerov2/.vnc/passwd -forever -shared -rfbport 5900 -bg -o /tmp/x11vnc.log\n\
+\n\
+# Start Gazebo GUI with BlueROV2 world (using full path)\n\
+echo "Starting Gazebo GUI..."\n\
+gz sim -v -r /home/bluerov2/bluerov2_gz/worlds/bluerov2_underwater.world\n\
+' > /home/$USERNAME/start_gui.sh && chmod +x /home/$USERNAME/start_gui.sh
+
+# Create startup script for headless mode
+RUN echo '#!/bin/bash\n\
+gz sim -v -s -r /home/bluerov2/bluerov2_gz/worlds/bluerov2_underwater.world\n\
+' > /home/$USERNAME/start_headless.sh && chmod +x /home/$USERNAME/start_headless.sh
+
+# Default: run server-only mode (headless)
+# To run GUI mode, override with: docker run ... your-image /home/bluerov2/start_gui.sh
+ENTRYPOINT ["/bin/bash"]
+CMD ["/home/bluerov2/start_headless.sh"]

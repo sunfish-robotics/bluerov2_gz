@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
+# Build from parent directory to include models/ and worlds/
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+PARENT_DIR="$( cd "$DIR/.." && pwd )"
 
-cd $DIR
+cd "$PARENT_DIR"
 
-docker build -f $DIR/Dockerfile -t bluerov2_gz:latest ..
+docker build -f docker/Dockerfile -t bluerov2_gz:latest .
